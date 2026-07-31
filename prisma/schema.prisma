@@ -1,0 +1,151 @@
+// ConvertFlow — Prisma schema
+// Database: SQLite (sandbox). The same schema is portable to Neon PostgreSQL
+// by switching the datasource provider to "postgresql".
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  passwordHash  String?
+  image         String?
+  role          String    @default("user") // "user" | "admin"
+  plan          String    @default("free") // "free" | "pro" | "business"
+  storageUsed   Int       @default(0) // bytes
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts      Account[]
+  sessions      Session[]
+  conversions   Conversion[]
+  favorites     Favorite[]
+  notifications Notification[]
+  settings      Settings?
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  provider          String
+  providerAccountId String
+  accessToken       String?
+  refreshToken      String?
+  expiresAt         Int?
+  createdAt         DateTime @default(now())
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  userId       String
+  token        String   @unique
+  expires      DateTime
+  ip           String?
+  userAgent    String?
+  createdAt    DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Verification {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  email     String
+  type      String // "reset" | "verify_email"
+  expires   DateTime
+  createdAt DateTime @default(now())
+}
+
+model Conversion {
+  id            String   @id @default(cuid())
+  userId        String?
+  category      String // "image" | "document" | "audio" | "video" | ...
+  fromFormat    String
+  toFormat      String
+  originalName  String
+  originalSize  Int // bytes
+  resultSize    Int?
+  status        String   @default("pending") // "pending" | "processing" | "completed" | "failed"
+  resultUrl     String?
+  durationMs    Int?
+  createdAt     DateTime @default(now())
+  user          User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  files         ConversionFile[]
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model ConversionFile {
+  id           String   @id @default(cuid())
+  conversionId String
+  name         String
+  size         Int
+  mimeType     String
+  url          String?
+  createdAt    DateTime @default(now())
+  conversion   Conversion @relation(fields: [conversionId], references: [id], onDelete: Cascade)
+}
+
+model Favorite {
+  id        String   @id @default(cuid())
+  userId    String
+  fromFormat String
+  toFormat  String
+  category  String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, fromFormat, toFormat])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  message   String
+  type      String   @default("info") // "info" | "success" | "warning" | "error"
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+}
+
+model Settings {
+  id               String  @id @default(cuid())
+  userId           String  @unique
+  theme            String  @default("system") // "light" | "dark" | "system"
+  language         String  @default("fr")
+  emailNotifications Boolean @default(true)
+  autoDeleteDays   Int     @default(30)
+  compressionLevel Int     @default(6)
+  user             User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Newsletter {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model Contact {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  subject   String
+  message   String
+  status    String   @default("new") // "new" | "read" | "replied"
+  createdAt DateTime @default(now())
+}
